@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <node name="lidar_undistortion" pkg="lidar_undistortion" type="lidar_undistortion_node" output="screen">
+        <remap from="pointcloud" to="/penguin/os1_cloud_node/points" />
+    </node>
+</launch>
