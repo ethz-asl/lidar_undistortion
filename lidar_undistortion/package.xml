@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>lidar_undistortion</name>
+  <version>1.0.0</version>
+  <description>Undistort pointclouds using an odometry TF input</description>
+
+  <maintainer email="victorr@ethz.ch">Victor Reijgwart</maintainer>
+
+  <author>Victor Reijgwart</author>
+
+  <license>ASL 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>catkin_simple</buildtool_depend>
+
+  <!-- TODO(victorr): Clean up dependencies -->
+  <depend>ouster_ros</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>pcl_ros</depend>
+  <depend>pcl_conversions</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>minkindr</depend>
+  <depend>minkindr_conversions</depend>
+</package>
