@@ -37,9 +37,6 @@ void LidarUndistorter::pointcloudCallback(
   ros::Time t_end = pointcloud_msg.header.stamp +
                     ros::Duration((--pointcloud.points.end())->t * 1e-9);
 
-  // Allocate a pointcloud used to store the final result
-  pcl::PointCloud<ouster_ros::OS1::PointOS1> pointcloud_out;
-
   try {
     // Wait for all transforms to become available
     if (!tf_buffer_.canTransform(odom_frame, lidar_frame, t_end,
@@ -55,8 +52,8 @@ void LidarUndistorter::pointcloudCallback(
     transformMsgToEigen(msg_T_O_C_original.transform, T_O_C_original);
     Eigen::Affine3f T_C_O_original = T_O_C_original.inverse();
 
-    // Transform all points into the fixed frame (e.g. 'odom'),
-    // based on the LiDAR's true pose at each point's timestamp
+    // Correct the distortion on all points, using the LiDAR's true pose at
+    // each point's timestamp
     uint32_t last_transform_update_t = 0;
     Eigen::Affine3f T_O_C_correct = T_C_O_original;
     for (ouster_ros::OS1::PointOS1 &point : pointcloud.points) {
@@ -71,13 +68,11 @@ void LidarUndistorter::pointcloudCallback(
         transformMsgToEigen(msg_T_O_C_correct.transform, T_O_C_correct);
       }
 
-      // Transform the current point into the fixed frame based on the LiDAR
-      // sensor's current true pose
-      point = pcl::transformPoint(point, T_O_C_correct);
+      // Correct the point's distortion, by transforming it into the fixed
+      // frame based on the LiDAR sensor's current true pose, and then transform
+      // it back into the lidar scan frame
+      point = pcl::transformPoint(point, T_C_O_original * T_O_C_correct);
     }
-
-    // Transform the corrected pointcloud back into the LiDAR scan frame
-    pcl::transformPointCloud(pointcloud, pointcloud_out, T_C_O_original);
   } catch (tf2::TransformException &ex) {
     ROS_WARN("%s", ex.what());
     return;
@@ -85,7 +80,7 @@ void LidarUndistorter::pointcloudCallback(
 
   // Publish the corrected pointcloud
   sensor_msgs::PointCloud2 pointcloud_corrected_msg;
-  pcl::toROSMsg(pointcloud_out, pointcloud_corrected_msg);
+  pcl::toROSMsg(pointcloud, pointcloud_corrected_msg);
   corrected_pointcloud_pub_.publish(pointcloud_corrected_msg);
 }
 }  // namespace lidar_undistortion
