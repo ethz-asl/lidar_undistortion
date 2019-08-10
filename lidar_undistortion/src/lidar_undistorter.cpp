@@ -1,5 +1,9 @@
 #include "lidar_undistortion/lidar_undistorter.h"
 
+#include <ouster_ros/point_os1.h>
+#include <pcl/common/transforms.h>
+#include <pcl/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
 #include <string>
 
 namespace lidar_undistortion {
@@ -16,20 +20,25 @@ LidarUndistorter::LidarUndistorter(ros::NodeHandle nh,
 }
 
 void LidarUndistorter::pointcloudCallback(
-    const sensor_msgs::PointCloud2::Ptr &pointcloud_msg) {
-  std::string odom_frame = "odom";
-  std::string lidar_frame = "os1_lidar";
+    const sensor_msgs::PointCloud2 &pointcloud_msg) {
+  const std::string odom_frame = "odom";
+  const std::string lidar_frame = "os1_lidar";
 
-  // Conver the pointcloud to PCL
-  pcl::PointCloud<ouster_ros::OS1::PointOS1> pointcloud_out;
-  pcl::fromROSMsg(*pointcloud_msg, pointcloud_out);
+  // Convert the pointcloud to PCL
+  pcl::PointCloud<ouster_ros::OS1::PointOS1> pointcloud;
+  pcl::fromROSMsg(pointcloud_msg, pointcloud);
+
+  // Assert that the pointcloud is not empty
+  if (pointcloud.empty()) return;
 
   // Get the start and end times of the pointcloud
-  // TODO(victorr): Assert that the pointcloud isn't empty
-  ros::Time t_start = pointcloud_msg->header.stamp +
-                      ros::Duration(pointcloud_out.points.begin()->t * 1e-9);
-  ros::Time t_end = pointcloud_msg->header.stamp +
-                    ros::Duration((--pointcloud_out.points.end())->t * 1e-9);
+  ros::Time t_start = pointcloud_msg.header.stamp +
+                      ros::Duration(pointcloud.points.begin()->t * 1e-9);
+  ros::Time t_end = pointcloud_msg.header.stamp +
+                    ros::Duration((--pointcloud.points.end())->t * 1e-9);
+
+  // Allocate a pointcloud used to store the final result
+  pcl::PointCloud<ouster_ros::OS1::PointOS1> pointcloud_out;
 
   try {
     // Wait for all transforms to become available
@@ -41,32 +50,34 @@ void LidarUndistorter::pointcloudCallback(
 
     // Get the frame that the cloud should be expressed in
     geometry_msgs::TransformStamped msg_T_O_C_original =
-        tf_buffer_.lookupTransform(odom_frame, lidar_frame,
-                                   pointcloud_msg->header.stamp);
-    kindr::minimal::QuatTransformationTemplate<double> T_O_C_original;
-    tf::transformMsgToKindr(msg_T_O_C_original.transform, &T_O_C_original);
+        tf_buffer_.lookupTransform(odom_frame, lidar_frame, t_start);
+    Eigen::Affine3f T_O_C_original;
+    transformMsgToEigen(msg_T_O_C_original.transform, T_O_C_original);
+    Eigen::Affine3f T_C_O_original = T_O_C_original.inverse();
 
-    // Loop over all points
-    // TODO(victorr): Vectorize this into batches (e.g. per column)
-    for (ouster_ros::OS1::PointOS1 &point : pointcloud_out.points) {
-      // Get the frame that the point was actually in
-      geometry_msgs::TransformStamped msg_T_O_C_correct =
-          tf_buffer_.lookupTransform(
-              odom_frame, lidar_frame,
-              pointcloud_msg->header.stamp + ros::Duration(0, point.t));
-      kindr::minimal::QuatTransformationTemplate<double> T_O_C_correct;
-      tf::transformMsgToKindr(msg_T_O_C_correct.transform, &T_O_C_correct);
+    // Transform all points into the fixed frame (e.g. 'odom'),
+    // based on the LiDAR's true pose at each point's timestamp
+    uint32_t last_transform_update_t = 0;
+    Eigen::Affine3f T_O_C_correct = T_C_O_original;
+    for (ouster_ros::OS1::PointOS1 &point : pointcloud.points) {
+      // Check if the current point's timestamp differs from the previous one
+      // If so, lookup the new corresponding transform
+      if (point.t != last_transform_update_t) {
+        last_transform_update_t = point.t;
+        ros::Time point_t =
+            pointcloud_msg.header.stamp + ros::Duration(0, point.t);
+        geometry_msgs::TransformStamped msg_T_O_C_correct =
+            tf_buffer_.lookupTransform(odom_frame, lidar_frame, point_t);
+        transformMsgToEigen(msg_T_O_C_correct.transform, T_O_C_correct);
+      }
 
-      // Correct the pose of the current point
-      kindr::minimal::QuatTransformationTemplate<double>::Position point_pose(
-          point.x, point.y, point.z);
-      point_pose = T_O_C_original.inverse() * T_O_C_correct * point_pose;
-
-      // Store our changes
-      point.x = point_pose.x();
-      point.y = point_pose.y();
-      point.z = point_pose.z();
+      // Transform the current point into the fixed frame based on the LiDAR
+      // sensor's current true pose
+      point = pcl::transformPoint(point, T_O_C_correct);
     }
+
+    // Transform the corrected pointcloud back into the LiDAR scan frame
+    pcl::transformPointCloud(pointcloud, pointcloud_out, T_C_O_original);
   } catch (tf2::TransformException &ex) {
     ROS_WARN("%s", ex.what());
     return;
