@@ -58,7 +58,7 @@ void LidarUndistorter::pointcloudCallback(
     // Correct the distortion on all points, using the LiDAR's true pose at
     // each point's timestamp
     uint32_t last_transform_update_t = 0;
-    Eigen::Affine3f T_O_C_correct = T_C_O_original;
+    Eigen::Affine3f T_C_original__C_corrected = Eigen::Affine3f::Identity();
     for (ouster_ros::OS1::PointOS1 &point : pointcloud.points) {
       // Check if the current point's timestamp differs from the previous one
       // If so, lookup the new corresponding transform
@@ -69,13 +69,15 @@ void LidarUndistorter::pointcloudCallback(
         geometry_msgs::TransformStamped msg_T_O_C_correct =
             tf_buffer_.lookupTransform(fixed_frame_id_, lidar_frame_id_,
                                        point_t);
+        Eigen::Affine3f T_O_C_correct;
         transformMsgToEigen(msg_T_O_C_correct.transform, T_O_C_correct);
+        T_C_original__C_corrected = T_C_O_original * T_O_C_correct;
       }
 
       // Correct the point's distortion, by transforming it into the fixed
       // frame based on the LiDAR sensor's current true pose, and then transform
       // it back into the lidar scan frame
-      point = pcl::transformPoint(point, T_C_O_original * T_O_C_correct);
+      point = pcl::transformPoint(point, T_C_original__C_corrected);
     }
   } catch (tf2::TransformException &ex) {
     ROS_WARN("%s", ex.what());
