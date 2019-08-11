@@ -34,6 +34,14 @@ class LidarUndistorter {
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
 
+  // Method that waits for a transform to become available, while doing less
+  // agressive polling that ROS's standard tf2_ros::Buffer::canTransform(...)
+  bool waitForTransform(const std::string &from_frame_id,
+                        const std::string &to_frame_id,
+                        const ros::Time &frame_timestamp,
+                        const double &sleep_between_retries__s,
+                        const double &timeout__s);
+
   // Inline method to convert ROS transform msgs to Eigen Affine transforms
   // NOTE: This is a copy of the tf::transformMsgToEigen() method from
   //       eigen_conversions/eigen_msg.h that has been modified such that float

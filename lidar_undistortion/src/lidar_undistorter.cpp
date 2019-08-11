@@ -42,9 +42,11 @@ void LidarUndistorter::pointcloudCallback(
 
   try {
     // Wait for all transforms to become available
-    if (!tf_buffer_.canTransform(fixed_frame_id_, lidar_frame_id_, t_end,
-                                 ros::Duration(0.25))) {
-      ROS_WARN("Could not lookup transform to correct pointcloud.");
+    if (!waitForTransform(lidar_frame_id_, fixed_frame_id_, t_end, 0.05,
+                          0.25)) {
+      ROS_WARN(
+          "Could not get correction transform within allotted time. "
+          "Skipping pointcloud.");
       return;
     }
 
@@ -88,5 +90,29 @@ void LidarUndistorter::pointcloudCallback(
   sensor_msgs::PointCloud2 pointcloud_corrected_msg;
   pcl::toROSMsg(pointcloud, pointcloud_corrected_msg);
   corrected_pointcloud_pub_.publish(pointcloud_corrected_msg);
+}
+
+bool LidarUndistorter::waitForTransform(const std::string &from_frame_id,
+                                        const std::string &to_frame_id,
+                                        const ros::Time &frame_timestamp,
+                                        const double &sleep_between_retries__s,
+                                        const double &timeout__s) {
+  // Total time spent waiting for the updated pose
+  ros::WallDuration t_waited(0.0);
+  // Maximum time to wait before giving up
+  ros::WallDuration t_max(timeout__s);
+  // Timeout between each update attempt
+  const ros::WallDuration t_sleep(sleep_between_retries__s);
+  while (t_waited < t_max) {
+    if (tf_buffer_.canTransform(fixed_frame_id_, lidar_frame_id_,
+                                frame_timestamp)) {
+      return true;
+    }
+    t_sleep.sleep();
+    t_waited += t_sleep;
+  }
+  ROS_WARN("Waited %.3fs, but still could not get the TF from %s to %s",
+           t_waited.toSec(), lidar_frame_id_.c_str(), fixed_frame_id_.c_str());
+  return false;
 }
 }  // namespace lidar_undistortion
