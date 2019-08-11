@@ -2,5 +2,7 @@
 <launch>
     <node name="lidar_undistortion" pkg="lidar_undistortion" type="lidar_undistortion_node" output="screen">
         <remap from="pointcloud" to="/penguin/os1_cloud_node/points" />
+        <param name="odom_frame_id" value="odom" />
+        <param name="lidar_frame_id" value="os1_lidar" />
     </node>
 </launch>

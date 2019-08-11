@@ -1,5 +1,4 @@
 #include "lidar_undistortion/lidar_undistorter.h"
-
 #include <ouster_ros/point_os1.h>
 #include <pcl/common/transforms.h>
 #include <pcl/point_cloud.h>
@@ -9,21 +8,25 @@
 namespace lidar_undistortion {
 LidarUndistorter::LidarUndistorter(ros::NodeHandle nh,
                                    ros::NodeHandle nh_private)
-    : nh_(nh),
-      nh_private_(nh_private),
+    : fixed_frame_id_("odom"),
+      lidar_frame_id_("os1_lidar"),
       tf_buffer_(ros::Duration(10)),
       tf_listener_(tf_buffer_) {
-  pointcloud_sub_ = nh_.subscribe("pointcloud", 100,
-                                  &LidarUndistorter::pointcloudCallback, this);
-  corrected_pointcloud_pub_ = nh_private_.advertise<sensor_msgs::PointCloud2>(
+  // Subscribe to the undistorted pointcloud topic
+  pointcloud_sub_ = nh.subscribe("pointcloud", 100,
+                                 &LidarUndistorter::pointcloudCallback, this);
+
+  // Advertise the corrected pointcloud topic
+  corrected_pointcloud_pub_ = nh_private.advertise<sensor_msgs::PointCloud2>(
       "pointcloud_corrected", 100, false);
+
+  // Read the odom and lidar frame names from ROS params
+  nh_private.param("odom_frame_id", fixed_frame_id_, fixed_frame_id_);
+  nh_private.param("lidar_frame_id", lidar_frame_id_, lidar_frame_id_);
 }
 
 void LidarUndistorter::pointcloudCallback(
     const sensor_msgs::PointCloud2 &pointcloud_msg) {
-  const std::string odom_frame = "odom";
-  const std::string lidar_frame = "os1_lidar";
-
   // Convert the pointcloud to PCL
   pcl::PointCloud<ouster_ros::OS1::PointOS1> pointcloud;
   pcl::fromROSMsg(pointcloud_msg, pointcloud);
@@ -39,7 +42,7 @@ void LidarUndistorter::pointcloudCallback(
 
   try {
     // Wait for all transforms to become available
-    if (!tf_buffer_.canTransform(odom_frame, lidar_frame, t_end,
+    if (!tf_buffer_.canTransform(fixed_frame_id_, lidar_frame_id_, t_end,
                                  ros::Duration(0.25))) {
       ROS_WARN("Could not lookup transform to correct pointcloud.");
       return;
@@ -47,7 +50,7 @@ void LidarUndistorter::pointcloudCallback(
 
     // Get the frame that the cloud should be expressed in
     geometry_msgs::TransformStamped msg_T_O_C_original =
-        tf_buffer_.lookupTransform(odom_frame, lidar_frame, t_start);
+        tf_buffer_.lookupTransform(fixed_frame_id_, lidar_frame_id_, t_start);
     Eigen::Affine3f T_O_C_original;
     transformMsgToEigen(msg_T_O_C_original.transform, T_O_C_original);
     Eigen::Affine3f T_C_O_original = T_O_C_original.inverse();
@@ -64,7 +67,8 @@ void LidarUndistorter::pointcloudCallback(
         ros::Time point_t =
             pointcloud_msg.header.stamp + ros::Duration(0, point.t);
         geometry_msgs::TransformStamped msg_T_O_C_correct =
-            tf_buffer_.lookupTransform(odom_frame, lidar_frame, point_t);
+            tf_buffer_.lookupTransform(fixed_frame_id_, lidar_frame_id_,
+                                       point_t);
         transformMsgToEigen(msg_T_O_C_correct.transform, T_O_C_correct);
       }
 
