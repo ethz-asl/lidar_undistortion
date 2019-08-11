@@ -5,6 +5,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <tf2_ros/transform_listener.h>
 #include <Eigen/Eigen>
+#include <string>
 
 namespace lidar_undistortion {
 class LidarUndistorter {
@@ -14,16 +15,29 @@ class LidarUndistorter {
   void pointcloudCallback(const sensor_msgs::PointCloud2 &pointcloud_msg);
 
  private:
-  ros::NodeHandle nh_;
-  ros::NodeHandle nh_private_;
+  // TF frame name of the lidar scan frame
+  std::string lidar_frame_id_;
 
+  // TF frame name of a frame that can be considered fixed
+  // NOTE: When correcting the pointcloud distortion, each point is first
+  //       transformed into a fixed frame (F), using the lidar's true pose
+  //       at the time that the point was recorded (S_correct).
+  //       The point is then transformed back into the scan frame (S_original)
+  //       matching the pointcloud message's frame_id and timestamp.
+  std::string fixed_frame_id_;
+
+  // ROS subscriber and publisher for the (un)corrected pointclouds
   ros::Subscriber pointcloud_sub_;
   ros::Publisher corrected_pointcloud_pub_;
 
+  // Members used to lookup TF transforms
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
 
-  // TODO(victorr): Explain why this is here
+  // Inline method to convert ROS transform msgs to Eigen Affine transforms
+  // NOTE: This is a copy of the tf::transformMsgToEigen() method from
+  //       eigen_conversions/eigen_msg.h that has been modified such that float
+  //       precision can be used (e.g. for Eigen::Affine3f transforms)
   template <typename T>
   void transformMsgToEigen(const geometry_msgs::Transform &transform_msg,
                            T &transform) {  // NOLINT
