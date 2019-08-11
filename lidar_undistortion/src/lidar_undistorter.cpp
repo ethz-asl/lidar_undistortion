@@ -51,16 +51,19 @@ void LidarUndistorter::pointcloudCallback(
     }
 
     // Get the frame that the cloud should be expressed in
-    geometry_msgs::TransformStamped msg_T_O_C_original =
+    geometry_msgs::TransformStamped msg_T_F_S_original =
         tf_buffer_.lookupTransform(fixed_frame_id_, lidar_frame_id_, t_start);
-    Eigen::Affine3f T_O_C_original;
-    transformMsgToEigen(msg_T_O_C_original.transform, T_O_C_original);
-    Eigen::Affine3f T_C_O_original = T_O_C_original.inverse();
+    Eigen::Affine3f T_F_S_original;
+    transformMsgToEigen(msg_T_F_S_original.transform, T_F_S_original);
+
+    // Compute the transform used to project the corrected pointcloud back into
+    // lidar's scan frame, for more info see this header for this class.
+    Eigen::Affine3f T_S_F_original = T_F_S_original.inverse();
 
     // Correct the distortion on all points, using the LiDAR's true pose at
     // each point's timestamp
     uint32_t last_transform_update_t = 0;
-    Eigen::Affine3f T_C_original__C_corrected = Eigen::Affine3f::Identity();
+    Eigen::Affine3f T_S_original__S_corrected = Eigen::Affine3f::Identity();
     for (ouster_ros::OS1::PointOS1 &point : pointcloud.points) {
       // Check if the current point's timestamp differs from the previous one
       // If so, lookup the new corresponding transform
@@ -68,18 +71,18 @@ void LidarUndistorter::pointcloudCallback(
         last_transform_update_t = point.t;
         ros::Time point_t =
             pointcloud_msg.header.stamp + ros::Duration(0, point.t);
-        geometry_msgs::TransformStamped msg_T_O_C_correct =
+        geometry_msgs::TransformStamped msg_T_F_S_correct =
             tf_buffer_.lookupTransform(fixed_frame_id_, lidar_frame_id_,
                                        point_t);
-        Eigen::Affine3f T_O_C_correct;
-        transformMsgToEigen(msg_T_O_C_correct.transform, T_O_C_correct);
-        T_C_original__C_corrected = T_C_O_original * T_O_C_correct;
+        Eigen::Affine3f T_F_S_correct;
+        transformMsgToEigen(msg_T_F_S_correct.transform, T_F_S_correct);
+        T_S_original__S_corrected = T_S_F_original * T_F_S_correct;
       }
 
       // Correct the point's distortion, by transforming it into the fixed
       // frame based on the LiDAR sensor's current true pose, and then transform
       // it back into the lidar scan frame
-      point = pcl::transformPoint(point, T_C_original__C_corrected);
+      point = pcl::transformPoint(point, T_S_original__S_corrected);
     }
   } catch (tf2::TransformException &ex) {
     ROS_WARN("%s", ex.what());
