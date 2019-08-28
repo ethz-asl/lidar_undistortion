@@ -89,9 +89,17 @@ void LidarUndistorter::pointcloudCallback(
     return;
   }
 
-  // Publish the corrected pointcloud
+  // Create the corrected pointcloud ROS msg
   sensor_msgs::PointCloud2 pointcloud_corrected_msg;
   pcl::toROSMsg(pointcloud, pointcloud_corrected_msg);
+
+  // Copy the pointcloud header correctly
+  // NOTE: The header timestamp type in PCL pointclouds is narrower than in
+  //       PointCloud2 msgs. We therefore copy this field directly from the
+  //       losing timestamp accuracy.
+  pointcloud_corrected_msg.header = pointcloud_msg.header;
+
+  // Publish the corrected pointcloud
   corrected_pointcloud_pub_.publish(pointcloud_corrected_msg);
 }
 
