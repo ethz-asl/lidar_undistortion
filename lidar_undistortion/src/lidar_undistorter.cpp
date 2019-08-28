@@ -57,7 +57,7 @@ void LidarUndistorter::pointcloudCallback(
     transformMsgToEigen(msg_T_F_S_original.transform, T_F_S_original);
 
     // Compute the transform used to project the corrected pointcloud back into
-    // lidar's scan frame, for more info see this header for this class.
+    // lidar's scan frame, for more info see the current class' header
     Eigen::Affine3f T_S_F_original = T_F_S_original.inverse();
 
     // Correct the distortion on all points, using the LiDAR's true pose at
@@ -115,15 +115,14 @@ bool LidarUndistorter::waitForTransform(const std::string &from_frame_id,
   // Timeout between each update attempt
   const ros::WallDuration t_sleep(sleep_between_retries__s);
   while (t_waited < t_max) {
-    if (tf_buffer_.canTransform(fixed_frame_id_, lidar_frame_id_,
-                                frame_timestamp)) {
+    if (tf_buffer_.canTransform(to_frame_id, from_frame_id, frame_timestamp)) {
       return true;
     }
     t_sleep.sleep();
     t_waited += t_sleep;
   }
   ROS_WARN("Waited %.3fs, but still could not get the TF from %s to %s",
-           t_waited.toSec(), lidar_frame_id_.c_str(), fixed_frame_id_.c_str());
+           t_waited.toSec(), from_frame_id.c_str(), to_frame_id.c_str());
   return false;
 }
 }  // namespace lidar_undistortion
