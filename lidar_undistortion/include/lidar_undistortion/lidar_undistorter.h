@@ -26,6 +26,8 @@ class LidarUndistorter {
   //       matching the pointcloud message's frame_id and timestamp.
   std::string fixed_frame_id_;
 
+  double min_range_;
+
   // ROS subscriber and publisher for the (un)corrected pointclouds
   ros::Subscriber pointcloud_sub_;
   ros::Publisher corrected_pointcloud_pub_;

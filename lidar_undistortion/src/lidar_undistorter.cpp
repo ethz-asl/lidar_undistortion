@@ -10,6 +10,7 @@ LidarUndistorter::LidarUndistorter(ros::NodeHandle nh,
                                    ros::NodeHandle nh_private)
     : fixed_frame_id_("odom"),
       lidar_frame_id_("os1_lidar"),
+      min_range_(-1),
       tf_buffer_(ros::Duration(10)),
       tf_listener_(tf_buffer_) {
   // Subscribe to the undistorted pointcloud topic
@@ -23,6 +24,7 @@ LidarUndistorter::LidarUndistorter(ros::NodeHandle nh,
   // Read the odom and lidar frame names from ROS params
   nh_private.param("odom_frame_id", fixed_frame_id_, fixed_frame_id_);
   nh_private.param("lidar_frame_id", lidar_frame_id_, lidar_frame_id_);
+  nh_private.param("min_range", min_range_, min_range_);
 }
 
 void LidarUndistorter::pointcloudCallback(
@@ -39,7 +41,7 @@ void LidarUndistorter::pointcloudCallback(
                       ros::Duration(pointcloud.points.begin()->t * 1e-9);
   ros::Time t_end = pointcloud_msg.header.stamp +
                     ros::Duration((--pointcloud.points.end())->t * 1e-9);
-
+  pcl::PointCloud<ouster_ros::Point> pointcloud_out;
   try {
     // Wait for all transforms to become available
     if (!waitForTransform(lidar_frame_id_, fixed_frame_id_, t_end, 0.05,
@@ -67,6 +69,9 @@ void LidarUndistorter::pointcloudCallback(
     for (ouster_ros::Point &point : pointcloud.points) {
       // Check if the current point's timestamp differs from the previous one
       // If so, lookup the new corresponding transform
+      if (point.getVector3fMap().norm() <= min_range_) {
+        continue;
+      }
       if (point.t != last_transform_update_t) {
         last_transform_update_t = point.t;
         ros::Time point_t =
@@ -83,6 +88,7 @@ void LidarUndistorter::pointcloudCallback(
       // frame based on the LiDAR sensor's current true pose, and then transform
       // it back into the lidar scan frame
       point = pcl::transformPoint(point, T_S_original__S_corrected);
+      pointcloud_out.points.push_back(point);
     }
   } catch (tf2::TransformException &ex) {
     ROS_WARN("%s", ex.what());
@@ -91,7 +97,7 @@ void LidarUndistorter::pointcloudCallback(
 
   // Create the corrected pointcloud ROS msg
   sensor_msgs::PointCloud2 pointcloud_corrected_msg;
-  pcl::toROSMsg(pointcloud, pointcloud_corrected_msg);
+  pcl::toROSMsg(pointcloud_out, pointcloud_corrected_msg);
 
   // Copy the pointcloud header correctly
   // NOTE: The header timestamp type in PCL pointclouds is narrower than in
