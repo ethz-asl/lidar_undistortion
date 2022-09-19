@@ -1,5 +1,5 @@
 #include "lidar_undistortion/lidar_undistorter.h"
-#include <ouster_ros/point_os1.h>
+#include <ouster_ros/point.h>
 #include <pcl/common/transforms.h>
 #include <pcl/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
@@ -28,7 +28,7 @@ LidarUndistorter::LidarUndistorter(ros::NodeHandle nh,
 void LidarUndistorter::pointcloudCallback(
     const sensor_msgs::PointCloud2 &pointcloud_msg) {
   // Convert the pointcloud to PCL
-  pcl::PointCloud<ouster_ros::OS1::PointOS1> pointcloud;
+  pcl::PointCloud<ouster_ros::Point> pointcloud;
   pcl::fromROSMsg(pointcloud_msg, pointcloud);
 
   // Assert that the pointcloud is not empty
@@ -64,7 +64,7 @@ void LidarUndistorter::pointcloudCallback(
     // each point's timestamp
     uint32_t last_transform_update_t = 0;
     Eigen::Affine3f T_S_original__S_corrected = Eigen::Affine3f::Identity();
-    for (ouster_ros::OS1::PointOS1 &point : pointcloud.points) {
+    for (ouster_ros::Point &point : pointcloud.points) {
       // Check if the current point's timestamp differs from the previous one
       // If so, lookup the new corresponding transform
       if (point.t != last_transform_update_t) {
