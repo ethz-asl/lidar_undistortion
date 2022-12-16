@@ -1,5 +1,5 @@
 #include "lidar_undistortion/lidar_undistorter.h"
-#include <ouster_ros/point.h>
+#include <ouster_ros/os_point.h>
 #include <pcl/common/transforms.h>
 #include <pcl/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>

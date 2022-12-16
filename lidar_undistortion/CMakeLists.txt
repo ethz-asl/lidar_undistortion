@@ -9,3 +9,6 @@ catkin_simple(ALL_DEPS_REQUIRED)
 cs_add_executable(lidar_undistortion_node
     src/lidar_undistortion_node.cpp
     src/lidar_undistorter.cpp)
+
+cs_install()
+cs_export()
