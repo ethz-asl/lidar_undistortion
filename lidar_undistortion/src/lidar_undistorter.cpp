@@ -10,7 +10,6 @@ LidarUndistorter::LidarUndistorter(ros::NodeHandle nh,
                                    ros::NodeHandle nh_private)
     : fixed_frame_id_("odom"),
       lidar_frame_id_("os1_lidar"),
-      tf_buffer_(ros::Duration(10)),
       tf_listener_(tf_buffer_) {
   // Subscribe to the undistorted pointcloud topic
   pointcloud_sub_ = nh.subscribe("pointcloud", 100,
@@ -42,7 +41,7 @@ void LidarUndistorter::pointcloudCallback(
 
   try {
     // Wait for all transforms to become available
-    if (!waitForTransform(lidar_frame_id_, fixed_frame_id_, t_end, 0.05,
+    if (!waitForTransform(lidar_frame_id_, fixed_frame_id_, t_end, 2.5,
                           0.25)) {
       ROS_WARN(
           "Could not get correction transform within allotted time. "
