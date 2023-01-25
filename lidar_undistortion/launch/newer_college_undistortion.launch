@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <node pkg="tf" type="static_transform_publisher"
+        name="static_tf_odom_camera_init"
+        args="0 0 0 0 0 0 1 odom camera_init 100"/>
+  <node pkg="tf" type="static_transform_publisher"
+        name="static_tf_fast_lio_imu"
+        args="0 0 0 0 0 0 1 imu_forward_prop os_imu 100"/>
+  <node pkg="tf" type="static_transform_publisher"
+        name="static_tf_os_imu_os_sensor"
+        args="-0.006253, 0.011775, -0.007645 0 0 0 1 os_imu os_sensor 100"/>
+  <node name="lidar_undistortion" pkg="lidar_undistortion"
+        type="lidar_undistortion_node" output="screen">
+    <remap from="pointcloud" to="/os_cloud_node/points"/>
+    <remap from="~/pointcloud_corrected" to="/os_cloud_node/points_corrected"/>
+    <param name="odom_frame_id" value="odom"/>
+    <param name="lidar_frame_id" value="os_sensor"/>
+  </node>
+</launch>

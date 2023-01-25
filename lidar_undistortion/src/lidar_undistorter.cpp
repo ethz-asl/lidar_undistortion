@@ -43,7 +43,7 @@ void LidarUndistorter::pointcloudCallback(
   try {
     // Wait for all transforms to become available
     if (!waitForTransform(lidar_frame_id_, fixed_frame_id_, t_end, 0.05,
-                          0.25)) {
+                          1.0)) {
       ROS_WARN(
           "Could not get correction transform within allotted time. "
           "Skipping pointcloud.");
@@ -98,6 +98,7 @@ void LidarUndistorter::pointcloudCallback(
   //       PointCloud2 msgs. We therefore copy this field directly from the
   //       losing timestamp accuracy.
   pointcloud_corrected_msg.header = pointcloud_msg.header;
+  pointcloud_corrected_msg.header.frame_id = lidar_frame_id_;
 
   // Publish the corrected pointcloud
   corrected_pointcloud_pub_.publish(pointcloud_corrected_msg);
